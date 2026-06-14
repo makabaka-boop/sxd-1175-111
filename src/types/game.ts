@@ -32,6 +32,8 @@ export interface Slot {
   closedUntil: number;
   priorityOverride: Priority | null;
   currentCard: Card | null;
+  cardPlacedAt: number;
+  hasWrongFlash: boolean;
   emptyStartTime: number;
   totalEmptyTime: number;
   correctCount: number;
@@ -84,7 +86,7 @@ export interface SlotStat {
 export interface GameResult {
   levelId: number;
   totalScore: number;
-  stars: 1 | 2 | 3;
+  stars: 0 | 1 | 2 | 3;
   accuracy: number;
   avgResponseTime: number;
   wrongCount: number;

@@ -77,6 +77,7 @@ interface GameStore {
 
   placeCard: (cardId: string, slotId: string, now: number) => boolean;
   removeCard: (cardId: string, reason: 'user' | 'timeout' | 'event') => void;
+  removeSlotCard: (slotId: string, reason: 'user' | 'event') => void;
   swapSlots: (slotIdA: string, slotIdB: string) => void;
 
   setDragStart: (card: Card, x: number, y: number, rect: DOMRect) => void;
@@ -103,6 +104,8 @@ function buildSlots(level: LevelConfig): Slot[] {
       closedUntil: 0,
       priorityOverride: null,
       currentCard: null,
+      cardPlacedAt: 0,
+      hasWrongFlash: false,
       emptyStartTime: 0,
       totalEmptyTime: 0,
       correctCount: 0,
@@ -343,6 +346,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const newSlots = state.slots.map((s) => ({ ...s }));
+    let slotChanged = false;
+    let emptyPenaltyAdd = 0;
+
+    for (let i = 0; i < newSlots.length; i++) {
+      const s = newSlots[i];
+      if (s.currentCard && s.cardPlacedAt > 0 && elapsed - s.cardPlacedAt >= 1500) {
+        s.currentCard = null;
+        s.cardPlacedAt = 0;
+        s.hasWrongFlash = false;
+        s.emptyStartTime = now;
+        slotChanged = true;
+      }
+    }
+
     const activeEvents = [...state.activeEvents];
     const newTriggered = new Set(state.triggeredEventIds);
     const newMessages = [...state.eventMessages];
@@ -362,19 +380,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
         });
         if (ev.type === 'priority_change') {
           const idx = (ev.payload as { slotIndex: number }).slotIndex;
-          if (state.slots[idx]) {
-            state.slots[idx].priorityOverride = (ev.payload as { priority: Priority }).priority;
+          if (newSlots[idx]) {
+            newSlots[idx].priorityOverride = (ev.payload as { priority: Priority }).priority;
+            slotChanged = true;
           }
         }
         if (ev.type === 'slot_close') {
           const idx = (ev.payload as { slotIndex: number }).slotIndex;
-          if (state.slots[idx]) {
-            state.slots[idx].isClosed = true;
-            state.slots[idx].closedUntil = now + ev.duration;
-            if (state.slots[idx].currentCard) {
+          if (newSlots[idx]) {
+            newSlots[idx].isClosed = true;
+            newSlots[idx].closedUntil = now + ev.duration;
+            if (newSlots[idx].currentCard) {
+              newSlots[idx].currentCard = null;
+              newSlots[idx].cardPlacedAt = 0;
+              newSlots[idx].hasWrongFlash = false;
+              newSlots[idx].emptyStartTime = now;
               eventMissAdd += 1;
               eventPenaltyAdd += calcEventMissPenalty();
             }
+            slotChanged = true;
           }
         }
       }
@@ -388,15 +412,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
       } else {
         if (ev.type === 'priority_change') {
           const idx = (ev.payload as { slotIndex: number }).slotIndex;
-          if (state.slots[idx]) {
-            state.slots[idx].priorityOverride = null;
+          if (newSlots[idx]) {
+            newSlots[idx].priorityOverride = null;
+            slotChanged = true;
           }
         }
         if (ev.type === 'slot_close') {
           const idx = (ev.payload as { slotIndex: number }).slotIndex;
-          if (state.slots[idx]) {
-            state.slots[idx].isClosed = false;
-            state.slots[idx].closedUntil = 0;
+          if (newSlots[idx]) {
+            newSlots[idx].isClosed = false;
+            newSlots[idx].closedUntil = 0;
+            slotChanged = true;
           }
         }
       }
@@ -409,13 +435,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeEvents: stillActive,
       triggeredEventIds: newTriggered,
       eventMessages: filteredMessages,
-      score: Math.max(0, state.score - eventPenaltyAdd),
+      score: Math.max(0, state.score - eventPenaltyAdd - emptyPenaltyAdd),
       scoreBreakdown: {
         ...state.scoreBreakdown,
         eventPenalty: state.scoreBreakdown.eventPenalty + eventPenaltyAdd,
+        emptyPenalty: state.scoreBreakdown.emptyPenalty + emptyPenaltyAdd,
       },
       eventMissCount: state.eventMissCount + eventMissAdd,
-      slots: state.slots.map((s) => ({ ...s })),
+      slots: slotChanged ? newSlots : state.slots,
     });
   },
 
@@ -482,6 +509,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let newCorrect = state.totalCorrect;
     let newWrong = state.totalWrong;
 
+    const placedAtGame = state.elapsedMs;
+
     if (correct) {
       newCombo += 1;
       newMaxCombo = Math.max(newMaxCombo, newCombo);
@@ -498,28 +527,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       addScore = base + speed + combo;
 
       newSlots[slotIdx].currentCard = card;
+      newSlots[slotIdx].cardPlacedAt = placedAtGame;
+      newSlots[slotIdx].hasWrongFlash = false;
       newSlots[slotIdx].correctCount += 1;
       if (newSlots[slotIdx].emptyStartTime > 0) {
         newSlots[slotIdx].totalEmptyTime += now - newSlots[slotIdx].emptyStartTime;
         newSlots[slotIdx].emptyStartTime = 0;
       }
-      setTimeout(() => {
-        const s = get();
-        if (s.status === 'playing') {
-          const curSlots = s.slots.map((x) => ({ ...x }));
-          const target = curSlots[slotIdx];
-          if (target && target.currentCard && target.currentCard.id === card.id) {
-            target.currentCard = null;
-            target.emptyStartTime = performance.now();
-            set({ slots: curSlots });
-          }
-        }
-      }, 1500);
     } else {
       newCombo = 0;
       newWrong += 1;
       addWrongPenalty = calcWrongPenalty();
       newSlots[slotIdx].wrongCount += 1;
+      newSlots[slotIdx].currentCard = card;
+      newSlots[slotIdx].cardPlacedAt = placedAtGame;
+      newSlots[slotIdx].hasWrongFlash = true;
     }
 
     set({
@@ -584,6 +606,53 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  removeSlotCard: (slotId, reason) => {
+    const state = get();
+    const slotIdx = state.slots.findIndex((s) => s.id === slotId);
+    if (slotIdx < 0) return;
+    const slot = state.slots[slotIdx];
+    if (!slot.currentCard || slot.isClosed) return;
+
+    const card = slot.currentCard;
+    const newSlots = state.slots.map((s) => ({ ...s }));
+    newSlots[slotIdx].currentCard = null;
+    newSlots[slotIdx].cardPlacedAt = 0;
+    newSlots[slotIdx].hasWrongFlash = false;
+    newSlots[slotIdx].emptyStartTime = performance.now();
+
+    let penalty = 0;
+    let newWrongPenalty = state.scoreBreakdown.wrongPenalty;
+    let newWrong = state.totalWrong;
+    let newCombo = state.combo;
+
+    if (reason === 'user') {
+      if (!card.isFake && !slot.hasWrongFlash) {
+        penalty = Math.round(calcWrongPenalty() * 0.5);
+        newWrongPenalty += penalty;
+        newWrong += 1;
+        newCombo = 0;
+      } else if (slot.hasWrongFlash || card.isFake) {
+        newCombo = state.combo;
+      }
+    } else if (reason === 'event') {
+      penalty = 0;
+    }
+
+    set({
+      slots: newSlots,
+      combo: newCombo,
+      score: Math.max(0, state.score - penalty),
+      scoreBreakdown: {
+        ...state.scoreBreakdown,
+        wrongPenalty: newWrongPenalty,
+      },
+      totalWrong: newWrong,
+      totalResponses: state.totalResponses + (reason === 'user' ? 1 : 0),
+      totalResponseTime:
+        state.totalResponseTime + (reason === 'user' ? (performance.now() - card.spawnTime) : 0),
+    });
+  },
+
   swapSlots: (slotIdA, slotIdB) => {
     const state = get();
     const a = state.slots.findIndex((s) => s.id === slotIdA);
@@ -594,8 +663,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newSlots = state.slots.map((s) => ({ ...s }));
     const cardA = newSlots[a].currentCard;
     const cardB = newSlots[b].currentCard;
+    const placedAtA = newSlots[a].cardPlacedAt;
+    const placedAtB = newSlots[b].cardPlacedAt;
+    const wrongA = newSlots[a].hasWrongFlash;
+    const wrongB = newSlots[b].hasWrongFlash;
     newSlots[a].currentCard = cardB;
+    newSlots[a].cardPlacedAt = placedAtB;
+    newSlots[a].hasWrongFlash = wrongB;
     newSlots[b].currentCard = cardA;
+    newSlots[b].cardPlacedAt = placedAtA;
+    newSlots[b].hasWrongFlash = wrongA;
 
     set({ slots: newSlots });
   },

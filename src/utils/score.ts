@@ -54,11 +54,11 @@ export function calcEventMissPenalty(): number {
 export function calcStars(
   score: number,
   level: LevelConfig,
-): 1 | 2 | 3 {
+): 0 | 1 | 2 | 3 {
   if (score >= level.threeStarScore) return 3;
   if (score >= level.twoStarScore) return 2;
   if (score >= level.targetScore) return 1;
-  return 1;
+  return 0;
 }
 
 export function calcAccuracy(
