@@ -526,18 +526,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
             slotChanged = true;
           }
         }
-        if (ev.type === 'fake_card') {
-          const chance = (ev.payload as { chance: number }).chance;
-          if (chance > 0.3) {
-            evStat.missCount += 1;
-          }
-        }
-        if (ev.type === 'rush_hour') {
-          const multiplier = (ev.payload as { multiplier: number }).multiplier;
-          if (multiplier > 1.6) {
-            evStat.missCount += 1;
-          }
-        }
 
         newEventTypeStats[ev.type] = evStat;
       }

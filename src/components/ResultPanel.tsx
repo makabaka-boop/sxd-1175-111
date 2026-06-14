@@ -6,6 +6,7 @@ import { LEVELS } from '@/data/levels';
 import { formatDuration, getEventTypeLabel } from '@/utils/score';
 import { generateTrainingLevel, getTrainingFocuses, markTrainingStarted } from '@/utils/storage';
 import { useGameStore } from '@/store/gameStore';
+import type { TrainingLevelConfig } from '@/types/game';
 
 interface ResultPanelProps {
   result: GameResult;
@@ -94,7 +95,10 @@ function SlotRow({ stat, index }: { stat: SlotStat; index: number }) {
 export function ResultPanel({ result }: ResultPanelProps) {
   const navigate = useNavigate();
   const initTrainingLevel = useGameStore((s) => s.initTrainingLevel);
-  const level = LEVELS.find((l) => l.id === result.levelId);
+  const currentLevel = useGameStore((s) => s.level);
+  const level = result.isTraining
+    ? (currentLevel as TrainingLevelConfig | null)
+    : LEVELS.find((l) => l.id === result.levelId);
   const nextLevel = LEVELS.find((l) => l.id === result.levelId + 1);
 
   const [showReview, setShowReview] = useState(false);
@@ -150,7 +154,7 @@ export function ResultPanel({ result }: ResultPanelProps) {
                 </span>
               )}
               <div className="text-xs uppercase tracking-[0.3em] text-indigo-300/70 font-bold">
-                {level?.name ?? `第${result.levelId}关`} 结算
+                {level?.name ?? (result.isTraining ? '专项训练' : `第${result.levelId}关`)} 结算
               </div>
             </div>
             <Stars count={result.stars} />

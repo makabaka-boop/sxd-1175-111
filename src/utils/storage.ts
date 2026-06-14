@@ -102,7 +102,10 @@ export function saveReviewSummary(result: GameResult): void {
 
   const worstSlot = result.reviewAnalysis.worstSlots[0];
   const slowCardType = result.reviewAnalysis.slowCardTypes[0];
-  const eventMiss = result.reviewAnalysis.eventMisses[0];
+  const totalEventMissCount = result.reviewAnalysis.eventMisses.reduce(
+    (sum, ev) => sum + ev.missCount,
+    0,
+  );
 
   const level = getLevel(result.levelId);
 
@@ -114,7 +117,7 @@ export function saveReviewSummary(result: GameResult): void {
     accuracy: result.accuracy,
     worstSlotLabel: worstSlot?.slotLabel || '无',
     slowestCardTypeLabel: slowCardType?.label || '无',
-    eventMissCount: eventMiss?.missCount || 0,
+    eventMissCount: totalEventMissCount,
     playedAt: result.playedAt,
     hasTraining: false,
   };
