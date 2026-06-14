@@ -257,6 +257,22 @@ export function generateTrainingLevel(
   };
 }
 
+export function getRecordByTimestamp(levelId: number, timestamp: number, isTraining: boolean): GameResult | null {
+  const history = isTraining ? getTrainingHistory() : getHistory();
+  const record = history.find(r => r.levelId === levelId && r.playedAt === timestamp);
+  return record || null;
+}
+
+export function getRecordsForLevel(levelId: number): GameResult[] {
+  const history = getHistory();
+  return history.filter(r => r.levelId === levelId).sort((a, b) => b.playedAt - a.playedAt);
+}
+
+export function getTrainingRecordsForSourceLevel(sourceLevelId: number): GameResult[] {
+  const history = getTrainingHistory();
+  return history.filter(r => r.sourceLevelId === sourceLevelId).sort((a, b) => b.playedAt - a.playedAt);
+}
+
 export function getTrainingFocuses(result: GameResult): TrainingFocus[] {
   const focuses: TrainingFocus[] = [];
 

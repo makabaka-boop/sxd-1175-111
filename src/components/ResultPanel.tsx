@@ -1,4 +1,4 @@
-import { Star, Trophy, Target, Clock, Flame, XCircle, AlertCircle, Lightbulb, RotateCcw, Home, ChevronRight, Zap, Layers, Activity, BarChart3, Dumbbell, ArrowRight } from 'lucide-react';
+import { Star, Trophy, Target, Clock, Flame, XCircle, AlertCircle, Lightbulb, RotateCcw, Home, ChevronRight, Zap, Layers, Activity, BarChart3, Dumbbell, ArrowRight, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { GameResult, SlotStat, TrainingFocus } from '@/types/game';
@@ -405,54 +405,94 @@ export function ResultPanel({ result }: ResultPanelProps) {
         )}
 
         {result.isTraining ? (
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button
-              onClick={onHome}
-              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-                bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
-            >
-              <Home size={16} />
-              关卡列表
-            </button>
-            <button
-              onClick={returnToSourceLevel}
-              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-                bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5"
-            >
-              <ArrowRight size={16} />
-              再次挑战
-            </button>
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={onHome}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                  bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
+              >
+                <Home size={16} />
+                关卡列表
+              </button>
+              <button
+                onClick={returnToSourceLevel}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                  bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5"
+              >
+                <ArrowRight size={16} />
+                再次挑战
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => navigate('/records')}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-xs transition-all
+                  bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-slate-300 hover:-translate-y-0.5"
+              >
+                <History size={14} />
+                战绩中心
+              </button>
+              <button
+                onClick={() => navigate(`/record/training/${result.levelId}?ts=${result.playedAt}`)}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-xs transition-all
+                  bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-slate-300 hover:-translate-y-0.5"
+              >
+                <BarChart3 size={14} />
+                查看详情
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3 pt-2">
-            <button
-              onClick={onHome}
-              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-                bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
-            >
-              <Home size={16} />
-              关卡列表
-            </button>
-            <button
-              onClick={onReplay}
-              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-                bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-100 shadow-md hover:-translate-y-0.5"
-            >
-              <RotateCcw size={16} />
-              重玩本关
-            </button>
-            <button
-              onClick={onNext}
-              disabled={!nextLevel}
-              className={`flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-                ${nextLevel
-                  ? 'bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5'
-                  : 'bg-slate-900/50 border border-slate-800 text-slate-600 cursor-not-allowed'
-                }`}
-            >
-              {nextLevel ? '下一关' : '已通关'}
-              {nextLevel && <ChevronRight size={16} />}
-            </button>
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={onHome}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                  bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
+              >
+                <Home size={16} />
+                关卡列表
+              </button>
+              <button
+                onClick={onReplay}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                  bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-100 shadow-md hover:-translate-y-0.5"
+              >
+                <RotateCcw size={16} />
+                重玩本关
+              </button>
+              <button
+                onClick={onNext}
+                disabled={!nextLevel}
+                className={`flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                  ${nextLevel
+                    ? 'bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5'
+                    : 'bg-slate-900/50 border border-slate-800 text-slate-600 cursor-not-allowed'
+                  }`}
+              >
+                {nextLevel ? '下一关' : '已通关'}
+                {nextLevel && <ChevronRight size={16} />}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => navigate('/records')}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-xs transition-all
+                  bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-slate-300 hover:-translate-y-0.5"
+              >
+                <History size={14} />
+                战绩中心
+              </button>
+              <button
+                onClick={() => navigate(`/record/level/${result.levelId}?ts=${result.playedAt}`)}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-xs transition-all
+                  bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-slate-300 hover:-translate-y-0.5"
+              >
+                <BarChart3 size={14} />
+                查看本局详情
+              </button>
+            </div>
           </div>
         )}
 

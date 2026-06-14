@@ -1,4 +1,4 @@
-import { ArrowLeft, Star, Lock, Dumbbell, BarChart3, Play, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Star, Lock, Dumbbell, BarChart3, Play, ArrowRight, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LEVELS } from '@/data/levels';
 import { getBestScores, isLevelUnlocked, getHistory, getTrainingFocuses, generateTrainingLevel, markTrainingStarted, getLastReviewSummary } from '@/utils/storage';
@@ -59,20 +59,29 @@ export function LevelsPage() {
       <div className="absolute bottom-0 left-1/4 w-80 h-80 rounded-full opacity-20 blur-3xl" style={{ background: '#0ea5e9' }} />
 
       <div className="max-w-5xl mx-auto relative">
-        <div className="flex items-center gap-3 mb-8">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 transition-all"
-          >
-            <ArrowLeft size={16} />
-            <span className="text-sm">返回</span>
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Chakra Petch', sans-serif" }}>
-              关卡选择
-            </h1>
-            <p className="text-xs text-slate-400">通关后自动解锁下一关</p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 transition-all"
+            >
+              <ArrowLeft size={16} />
+              <span className="text-sm">返回</span>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Chakra Petch', sans-serif" }}>
+                关卡选择
+              </h1>
+              <p className="text-xs text-slate-400">通关后自动解锁下一关</p>
+            </div>
           </div>
+          <button
+            onClick={() => navigate('/records')}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 transition-all"
+          >
+            <History size={16} className="text-amber-400" />
+            <span className="text-sm font-bold">战绩中心</span>
+          </button>
         </div>
 
         {lastReview && (

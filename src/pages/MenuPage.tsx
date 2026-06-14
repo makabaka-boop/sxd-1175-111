@@ -210,26 +210,13 @@ export function MenuPage() {
               <span className="text-xs font-bold">游戏教程</span>
             </button>
             <button
-              onClick={() => {
-                const scores = getBestScores();
-                alert(
-                  Object.values(scores).length === 0
-                    ? '还没有任何战绩，快去挑战吧！'
-                    : Object.values(scores)
-                        .sort((a, b) => a.levelId - b.levelId)
-                        .map((r) => {
-                          const lv = LEVELS.find(l => l.id === r.levelId);
-                          return `第${r.levelId}关 ${lv?.name ?? ''}: ${r.totalScore}分 ${'★'.repeat(r.stars)}`;
-                        })
-                        .join('\n'),
-                );
-              }}
+              onClick={() => navigate('/records')}
               className="flex flex-col items-center justify-center gap-1.5 py-3.5 rounded-xl transition-all
                 bg-slate-900/80 hover:bg-slate-800/80 border border-slate-700/60
                 text-slate-200 hover:-translate-y-0.5"
             >
               <History size={20} className="text-amber-400" />
-              <span className="text-xs font-bold">历史战绩</span>
+              <span className="text-xs font-bold">战绩中心</span>
             </button>
           </div>
         </div>
