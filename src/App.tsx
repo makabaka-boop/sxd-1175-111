@@ -4,6 +4,7 @@ import { TutorialPage } from '@/pages/TutorialPage';
 import { LevelsPage } from '@/pages/LevelsPage';
 import { GamePage } from '@/pages/GamePage';
 import { ResultPage } from '@/pages/ResultPage';
+import { TrainingPage } from '@/pages/TrainingPage';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/tutorial" element={<TutorialPage />} />
         <Route path="/levels" element={<LevelsPage />} />
         <Route path="/game/:levelId" element={<GamePage />} />
+        <Route path="/training/:levelId" element={<TrainingPage />} />
         <Route path="/result/:levelId" element={<ResultPage />} />
         <Route path="*" element={<MenuPage />} />
       </Routes>

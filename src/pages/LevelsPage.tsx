@@ -1,11 +1,41 @@
-import { ArrowLeft, Star, Lock } from 'lucide-react';
+import { ArrowLeft, Star, Lock, Dumbbell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LEVELS } from '@/data/levels';
-import { getBestScores, isLevelUnlocked } from '@/utils/storage';
+import { getBestScores, isLevelUnlocked, getHistory, getTrainingFocuses, generateTrainingLevel, markTrainingStarted } from '@/utils/storage';
+import { useGameStore } from '@/store/gameStore';
 
 export function LevelsPage() {
   const navigate = useNavigate();
+  const initTrainingLevel = useGameStore((s) => s.initTrainingLevel);
   const scores = getBestScores();
+  const history = getHistory();
+
+  const startTrainingForLevel = (levelId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const levelResult = history.find((r) => r.levelId === levelId && !r.isTraining);
+    if (!levelResult) {
+      navigate(`/game/${levelId}`);
+      return;
+    }
+    const focuses = getTrainingFocuses(levelResult);
+    if (focuses.length > 0) {
+      const trainingLevel = generateTrainingLevel(levelResult, focuses[0]);
+      if (trainingLevel) {
+        markTrainingStarted();
+        initTrainingLevel(trainingLevel);
+        navigate(`/training/${trainingLevel.id}`);
+      }
+    } else {
+      navigate(`/game/${levelId}`);
+    }
+  };
+
+  const hasTrainingAvailable = (levelId: number) => {
+    const levelResult = history.find((r) => r.levelId === levelId && !r.isTraining);
+    if (!levelResult) return false;
+    const focuses = getTrainingFocuses(levelResult);
+    return focuses.length > 0;
+  };
 
   return (
     <div className="min-h-screen py-8 px-4 relative overflow-hidden">
@@ -96,11 +126,24 @@ export function LevelsPage() {
                   </div>
 
                   {best ? (
-                    <div className="flex items-center justify-between text-xs bg-slate-950/60 rounded-lg px-3 py-2 border border-slate-800/60">
-                      <span className="text-slate-400">最佳</span>
-                      <span className="text-amber-300 font-bold tabular-nums">
-                        {best.totalScore.toLocaleString()}
-                      </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs bg-slate-950/60 rounded-lg px-3 py-2 border border-slate-800/60">
+                        <span className="text-slate-400">最佳</span>
+                        <span className="text-amber-300 font-bold tabular-nums">
+                          {best.totalScore.toLocaleString()}
+                        </span>
+                      </div>
+                      {hasTrainingAvailable(lv.id) && (
+                        <button
+                          onClick={(e) => startTrainingForLevel(lv.id, e)}
+                          className="w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-lg
+                            bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30
+                            text-amber-300 font-medium transition-all group"
+                        >
+                          <Dumbbell size={12} />
+                          针对性训练
+                        </button>
+                      )}
                     </div>
                   ) : unlocked ? (
                     <div className="text-center text-xs text-indigo-300 bg-indigo-500/10 rounded-lg py-2 border border-indigo-500/30 font-medium">

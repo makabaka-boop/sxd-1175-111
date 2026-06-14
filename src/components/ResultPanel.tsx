@@ -1,8 +1,11 @@
-import { Star, Trophy, Target, Clock, Flame, XCircle, AlertCircle, Lightbulb, RotateCcw, Home, ChevronRight } from 'lucide-react';
+import { Star, Trophy, Target, Clock, Flame, XCircle, AlertCircle, Lightbulb, RotateCcw, Home, ChevronRight, Zap, Layers, Activity, BarChart3, Dumbbell, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { GameResult, SlotStat } from '@/types/game';
+import { useState } from 'react';
+import type { GameResult, SlotStat, TrainingFocus } from '@/types/game';
 import { LEVELS } from '@/data/levels';
-import { formatDuration } from '@/utils/score';
+import { formatDuration, getEventTypeLabel } from '@/utils/score';
+import { generateTrainingLevel, getTrainingFocuses, markTrainingStarted } from '@/utils/storage';
+import { useGameStore } from '@/store/gameStore';
 
 interface ResultPanelProps {
   result: GameResult;
@@ -90,8 +93,13 @@ function SlotRow({ stat, index }: { stat: SlotStat; index: number }) {
 
 export function ResultPanel({ result }: ResultPanelProps) {
   const navigate = useNavigate();
+  const initTrainingLevel = useGameStore((s) => s.initTrainingLevel);
   const level = LEVELS.find((l) => l.id === result.levelId);
   const nextLevel = LEVELS.find((l) => l.id === result.levelId + 1);
+
+  const [showReview, setShowReview] = useState(false);
+
+  const trainingFocuses = result.isTraining ? [] : getTrainingFocuses(result);
 
   const onReplay = () => {
     navigate(`/game/${result.levelId}`);
@@ -102,7 +110,22 @@ export function ResultPanel({ result }: ResultPanelProps) {
   };
   const onHome = () => navigate('/levels');
 
-  const pct = level ? result.totalScore / level.threeStarScore : 0;
+  const startTraining = (focus: TrainingFocus) => {
+    const trainingLevel = generateTrainingLevel(result, focus);
+    if (trainingLevel) {
+      markTrainingStarted();
+      initTrainingLevel(trainingLevel);
+      navigate(`/training/${trainingLevel.id}`);
+    }
+  };
+
+  const returnToSourceLevel = () => {
+    if (result.sourceLevelId) {
+      navigate(`/game/${result.sourceLevelId}`);
+    } else {
+      navigate('/levels');
+    }
+  };
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -119,8 +142,16 @@ export function ResultPanel({ result }: ResultPanelProps) {
             style={{ background: '#0ea5e9' }} />
 
           <div className="relative text-center space-y-4">
-            <div className="text-xs uppercase tracking-[0.3em] text-indigo-300/70 font-bold">
-              {level?.name ?? `第${result.levelId}关`} 结算
+            <div className="flex items-center justify-center gap-2">
+              {result.isTraining && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[10px] font-bold">
+                  <Dumbbell size={10} />
+                  专项训练
+                </span>
+              )}
+              <div className="text-xs uppercase tracking-[0.3em] text-indigo-300/70 font-bold">
+                {level?.name ?? `第${result.levelId}关`} 结算
+              </div>
             </div>
             <Stars count={result.stars} />
             <div className="space-y-1">
@@ -243,39 +274,188 @@ export function ResultPanel({ result }: ResultPanelProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 pt-2">
-          <button
-            onClick={onHome}
-            className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-              bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
-          >
-            <Home size={16} />
-            关卡列表
-          </button>
-          <button
-            onClick={onReplay}
-            className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-              bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-100 shadow-md hover:-translate-y-0.5"
-          >
-            <RotateCcw size={16} />
-            重玩本关
-          </button>
-          <button
-            onClick={onNext}
-            disabled={!nextLevel}
-            className={`flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
-              ${nextLevel
-                ? 'bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5'
-                : 'bg-slate-900/50 border border-slate-800 text-slate-600 cursor-not-allowed'
-              }`}
-          >
-            {nextLevel ? '下一关' : '已通关'}
-            {nextLevel && <ChevronRight size={16} />}
-          </button>
-        </div>
+        {result.reviewAnalysis && !result.isTraining && (
+          <div className="space-y-4">
+            <button
+              onClick={() => setShowReview(!showReview)}
+              className="w-full flex items-center justify-between px-5 py-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 transition-all group"
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 size={18} className="text-amber-400" />
+                <span className="font-bold text-amber-200 text-sm">查看本局关键失误点分析</span>
+              </div>
+              <ChevronRight
+                size={18}
+                className={`text-amber-400 transition-transform ${showReview ? 'rotate-90' : ''}`}
+              />
+            </button>
+
+            {showReview && (
+              <div className="space-y-4 animate-fade-in">
+                {result.reviewAnalysis.worstSlots.length > 0 && (
+                  <div className="rounded-2xl border border-slate-700/50 bg-slate-950/60 p-5">
+                    <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                      <Layers size={14} className="text-rose-400" />
+                      错放最多的卡槽
+                    </h3>
+                    <div className="space-y-2">
+                      {result.reviewAnalysis.worstSlots.map((slot, i) => {
+                        const total = slot.correct + slot.wrong;
+                        const acc = total > 0 ? slot.correct / total : 0;
+                        return (
+                          <div key={i} className="flex items-center justify-between bg-slate-900/40 rounded-lg px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-slate-200">{slot.slotLabel}</span>
+                              <span className="text-xs text-rose-400">错放 {slot.wrong} 次</span>
+                            </div>
+                            <span className={`text-xs font-bold ${acc >= 0.7 ? 'text-emerald-400' : acc >= 0.5 ? 'text-amber-400' : 'text-rose-400'}`}>
+                              正确率 {(acc * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {result.reviewAnalysis.slowCardTypes.length > 0 && (
+                  <div className="rounded-2xl border border-slate-700/50 bg-slate-950/60 p-5">
+                    <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                      <Clock size={14} className="text-sky-400" />
+                      平均响应较慢的卡片类型
+                    </h3>
+                    <div className="space-y-2">
+                      {result.reviewAnalysis.slowCardTypes.map((cardType, i) => (
+                        <div key={i} className="flex items-center justify-between bg-slate-900/40 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-slate-200">{cardType.label}</span>
+                          <span className="text-xs text-sky-400 font-bold">
+                            平均 {formatDuration(cardType.avgResponseTime)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {result.reviewAnalysis.eventMisses.length > 0 && (
+                  <div className="rounded-2xl border border-slate-700/50 bg-slate-950/60 p-5">
+                    <h3 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                      <Activity size={14} className="text-purple-400" />
+                      事件处理失误
+                    </h3>
+                    <div className="space-y-2">
+                      {result.reviewAnalysis.eventMisses.map((event, i) => (
+                        <div key={i} className="flex items-center justify-between bg-slate-900/40 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-slate-200">
+                            {getEventTypeLabel(event.type)}
+                          </span>
+                          <span className="text-xs text-purple-400 font-bold">
+                            失误 {event.missCount} 次
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {trainingFocuses.length > 0 && (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5">
+            <h3 className="text-sm font-bold text-emerald-200 mb-4 flex items-center gap-1.5">
+              <Zap size={16} className="text-emerald-400" />
+              针对性训练模式
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              根据本局表现，系统为你推荐以下专项训练，点击即可开始强化练习：
+            </p>
+            <div className="space-y-2">
+              {trainingFocuses.map((focus, i) => (
+                <button
+                  key={i}
+                  onClick={() => startTraining(focus)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/30 flex items-center justify-center">
+                      {focus.type === 'slot' && <Layers size={16} className="text-emerald-300" />}
+                      {focus.type === 'cardType' && <Zap size={16} className="text-emerald-300" />}
+                      {focus.type === 'event' && <Activity size={16} className="text-emerald-300" />}
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-bold text-emerald-200">{focus.label}</div>
+                      <div className="text-[11px] text-emerald-400/70">
+                        {focus.type === 'slot' && '强化卡槽识别与正确归位'}
+                        {focus.type === 'cardType' && '提升卡片响应速度'}
+                        {focus.type === 'event' && '熟悉事件应对策略'}
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRight size={18} className="text-emerald-400 group-hover:translate-x-1 transition-transform" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {result.isTraining ? (
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={onHome}
+              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
+            >
+              <Home size={16} />
+              关卡列表
+            </button>
+            <button
+              onClick={returnToSourceLevel}
+              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5"
+            >
+              <ArrowRight size={16} />
+              再次挑战
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3 pt-2">
+            <button
+              onClick={onHome}
+              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:-translate-y-0.5"
+            >
+              <Home size={16} />
+              关卡列表
+            </button>
+            <button
+              onClick={onReplay}
+              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-100 shadow-md hover:-translate-y-0.5"
+            >
+              <RotateCcw size={16} />
+              重玩本关
+            </button>
+            <button
+              onClick={onNext}
+              disabled={!nextLevel}
+              className={`flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                ${nextLevel
+                  ? 'bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5'
+                  : 'bg-slate-900/50 border border-slate-800 text-slate-600 cursor-not-allowed'
+                }`}
+            >
+              {nextLevel ? '下一关' : '已通关'}
+              {nextLevel && <ChevronRight size={16} />}
+            </button>
+          </div>
+        )}
 
         <div className="text-center text-xs text-slate-600">
-          通关即解锁下一关 · 成绩保存在本机 localStorage
+          {result.isTraining
+            ? '训练完成 · 点击「再次挑战」返回原关卡巩固成果'
+            : '通关即解锁下一关 · 成绩保存在本机 localStorage'}
         </div>
       </div>
     </div>

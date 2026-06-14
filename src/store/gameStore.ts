@@ -2,17 +2,23 @@ import { create } from 'zustand';
 import type {
   Card,
   CardType,
+  CardTypeStat,
   DragState,
+  EventType,
+  EventTypeStat,
   GameEvent,
   GameResult,
   GameStatus,
   LevelConfig,
   Priority,
+  ReviewAnalysis,
   Slot,
+  TrainingLevelConfig,
 } from '@/types/game';
 import { CARD_TYPE_META, getLevel } from '@/data/levels';
 import {
   buildSlotStats,
+  buildReviewAnalysis,
   calcAccuracy,
   calcCorrectScore,
   calcEmptyPenalty,
@@ -26,7 +32,8 @@ import { saveGameResult } from '@/utils/storage';
 interface GameStore {
   status: GameStatus;
   levelId: number | null;
-  level: LevelConfig | null;
+  level: LevelConfig | TrainingLevelConfig | null;
+  isTrainingMode: boolean;
 
   startTime: number;
   pauseAccumulated: number;
@@ -55,15 +62,20 @@ interface GameStore {
   totalResponseTime: number;
   eventMissCount: number;
 
+  cardTypeStats: Record<CardType, CardTypeStat>;
+  eventTypeStats: Record<EventType, EventTypeStat>;
+
   activeEvents: GameEvent[];
   triggeredEventIds: Set<string>;
   eventMessages: { id: string; text: string; type: string; ts: number }[];
 
   lastResult: GameResult | null;
+  lastReviewAnalysis: ReviewAnalysis | null;
 
   drag: DragState;
 
   initLevel: (levelId: number) => void;
+  initTrainingLevel: (config: TrainingLevelConfig) => void;
   startGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
@@ -91,6 +103,35 @@ let cardIdCounter = 0;
 function makeCardId() {
   cardIdCounter += 1;
   return `card_${Date.now()}_${cardIdCounter}`;
+}
+
+function initCardTypeStats(): Record<CardType, CardTypeStat> {
+  const allTypes: CardType[] = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const stats: Record<CardType, CardTypeStat> = {} as Record<CardType, CardTypeStat>;
+  for (const type of allTypes) {
+    stats[type] = {
+      type,
+      label: CARD_TYPE_META[type].label,
+      correct: 0,
+      wrong: 0,
+      totalResponseTime: 0,
+      avgResponseTime: 0,
+    };
+  }
+  return stats;
+}
+
+function initEventTypeStats(): Record<EventType, EventTypeStat> {
+  const allTypes: EventType[] = ['slot_close', 'fake_card', 'priority_change', 'rush_hour'];
+  const stats: Record<EventType, EventTypeStat> = {} as Record<EventType, EventTypeStat>;
+  for (const type of allTypes) {
+    stats[type] = {
+      type,
+      count: 0,
+      missCount: 0,
+    };
+  }
+  return stats;
 }
 
 function buildSlots(level: LevelConfig): Slot[] {
@@ -123,6 +164,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   status: 'idle',
   levelId: null,
   level: null,
+  isTrainingMode: false,
 
   startTime: 0,
   pauseAccumulated: 0,
@@ -151,11 +193,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   totalResponseTime: 0,
   eventMissCount: 0,
 
+  cardTypeStats: initCardTypeStats(),
+  eventTypeStats: initEventTypeStats(),
+
   activeEvents: [],
   triggeredEventIds: new Set(),
   eventMessages: [],
 
   lastResult: null,
+  lastReviewAnalysis: null,
 
   drag: {
     isDragging: false,
@@ -175,6 +221,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       status: 'idle',
       levelId,
       level,
+      isTrainingMode: false,
       startTime: 0,
       pauseAccumulated: 0,
       lastPauseStart: 0,
@@ -197,10 +244,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
       totalResponses: 0,
       totalResponseTime: 0,
       eventMissCount: 0,
+      cardTypeStats: initCardTypeStats(),
+      eventTypeStats: initEventTypeStats(),
       activeEvents: [],
       triggeredEventIds: new Set(),
       eventMessages: [],
       lastResult: null,
+      lastReviewAnalysis: null,
+      drag: {
+        isDragging: false,
+        card: null,
+        startX: 0,
+        startY: 0,
+        currentX: 0,
+        currentY: 0,
+        offsetX: 0,
+        offsetY: 0,
+      },
+    });
+  },
+
+  initTrainingLevel: (config: TrainingLevelConfig) => {
+    set({
+      status: 'idle',
+      levelId: config.id,
+      level: config,
+      isTrainingMode: true,
+      startTime: 0,
+      pauseAccumulated: 0,
+      lastPauseStart: 0,
+      elapsedMs: 0,
+      slots: buildSlots(config),
+      pendingCards: [],
+      score: 0,
+      scoreBreakdown: {
+        baseCorrect: 0,
+        speedBonus: 0,
+        comboBonus: 0,
+        wrongPenalty: 0,
+        emptyPenalty: 0,
+        eventPenalty: 0,
+      },
+      combo: 0,
+      maxCombo: 0,
+      totalCorrect: 0,
+      totalWrong: 0,
+      totalResponses: 0,
+      totalResponseTime: 0,
+      eventMissCount: 0,
+      cardTypeStats: initCardTypeStats(),
+      eventTypeStats: initEventTypeStats(),
+      activeEvents: [],
+      triggeredEventIds: new Set(),
+      eventMessages: [],
+      lastResult: null,
+      lastReviewAnalysis: null,
       drag: {
         isDragging: false,
         card: null,
@@ -301,6 +399,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (breakdown.eventPenalty > 0)
       penalties.push({ label: `事件未处理扣分(${state.eventMissCount}次)`, amount: breakdown.eventPenalty });
 
+    const cardTypeStatsArray = Object.values(state.cardTypeStats).filter(
+      (s) => s.correct + s.wrong > 0,
+    );
+    const eventTypeStatsArray = Object.values(state.eventTypeStats).filter(
+      (s) => s.count > 0,
+    );
+
+    const reviewAnalysis = buildReviewAnalysis(
+      slotStats,
+      cardTypeStatsArray,
+      eventTypeStatsArray,
+    );
+
+    const isTraining = 'isTraining' in level && level.isTraining;
+    const sourceLevelId = isTraining && 'sourceLevelId' in level ? level.sourceLevelId : undefined;
+
     const partialResult = {
       levelId: level.id,
       totalScore: finalScore,
@@ -312,6 +426,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       slotStats,
       penalties,
       playedAt: Date.now(),
+      reviewAnalysis,
+      isTraining,
+      sourceLevelId,
     };
     const suggestion = generateSuggestion(partialResult);
     const result: GameResult = { ...partialResult, suggestion };
@@ -324,6 +441,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       score: finalScore,
       scoreBreakdown: breakdown,
       lastResult: result,
+      lastReviewAnalysis: reviewAnalysis,
     });
   },
 
@@ -348,7 +466,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const newSlots = state.slots.map((s) => ({ ...s }));
     let slotChanged = false;
-    let emptyPenaltyAdd = 0;
+    const emptyPenaltyAdd = 0;
 
     for (let i = 0; i < newSlots.length; i++) {
       const s = newSlots[i];
@@ -367,6 +485,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let eventPenaltyAdd = 0;
     let eventMissAdd = 0;
 
+    const newEventTypeStats = { ...state.eventTypeStats };
+
     const remaining = state.level.events.filter((ev) => !newTriggered.has(ev.id));
     for (const ev of remaining) {
       if (elapsed >= ev.triggerAt) {
@@ -378,6 +498,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
           type: ev.type,
           ts: now,
         });
+
+        const evStat = { ...newEventTypeStats[ev.type] };
+        evStat.count += 1;
+
         if (ev.type === 'priority_change') {
           const idx = (ev.payload as { slotIndex: number }).slotIndex;
           if (newSlots[idx]) {
@@ -397,10 +521,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
               newSlots[idx].emptyStartTime = now;
               eventMissAdd += 1;
               eventPenaltyAdd += calcEventMissPenalty();
+              evStat.missCount += 1;
             }
             slotChanged = true;
           }
         }
+        if (ev.type === 'fake_card') {
+          const chance = (ev.payload as { chance: number }).chance;
+          if (chance > 0.3) {
+            evStat.missCount += 1;
+          }
+        }
+        if (ev.type === 'rush_hour') {
+          const multiplier = (ev.payload as { multiplier: number }).multiplier;
+          if (multiplier > 1.6) {
+            evStat.missCount += 1;
+          }
+        }
+
+        newEventTypeStats[ev.type] = evStat;
       }
     }
 
@@ -442,6 +581,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         emptyPenalty: state.scoreBreakdown.emptyPenalty + emptyPenaltyAdd,
       },
       eventMissCount: state.eventMissCount + eventMissAdd,
+      eventTypeStats: newEventTypeStats,
       slots: slotChanged ? newSlots : state.slots,
     });
   },
@@ -511,6 +651,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const placedAtGame = state.elapsedMs;
 
+    const newCardTypeStats = { ...state.cardTypeStats };
+    const cardTypeStat = { ...newCardTypeStats[card.type] };
+    if (correct) {
+      cardTypeStat.correct += 1;
+    } else {
+      cardTypeStat.wrong += 1;
+    }
+    cardTypeStat.totalResponseTime += responseTime;
+    const totalForType = cardTypeStat.correct + cardTypeStat.wrong;
+    cardTypeStat.avgResponseTime = totalForType > 0 ? cardTypeStat.totalResponseTime / totalForType : 0;
+    newCardTypeStats[card.type] = cardTypeStat;
+
     if (correct) {
       newCombo += 1;
       newMaxCombo = Math.max(newMaxCombo, newCombo);
@@ -561,6 +713,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       totalWrong: newWrong,
       totalResponses: state.totalResponses + 1,
       totalResponseTime: state.totalResponseTime + responseTime,
+      cardTypeStats: newCardTypeStats,
     });
 
     return correct;

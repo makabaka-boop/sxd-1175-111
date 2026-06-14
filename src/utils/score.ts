@@ -1,7 +1,10 @@
 import type {
   Card,
+  CardTypeStat,
+  EventTypeStat,
   GameResult,
   LevelConfig,
+  ReviewAnalysis,
   Slot,
   SlotStat,
   Priority,
@@ -146,4 +149,48 @@ export function formatTime(ms: number): string {
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+export function buildReviewAnalysis(
+  slotStats: SlotStat[],
+  cardTypeStats: CardTypeStat[],
+  eventTypeStats: EventTypeStat[],
+): ReviewAnalysis {
+  const worstSlots = [...slotStats]
+    .sort((a, b) => b.wrong - a.wrong)
+    .filter((s) => s.wrong > 0)
+    .slice(0, 3)
+    .map((s) => ({
+      slotId: s.slotId,
+      slotLabel: s.slotLabel,
+      wrong: s.wrong,
+      correct: s.correct,
+    }));
+
+  const slowCardTypes = [...cardTypeStats]
+    .filter((s) => s.correct + s.wrong >= 3)
+    .sort((a, b) => b.avgResponseTime - a.avgResponseTime)
+    .slice(0, 3);
+
+  const eventMisses = [...eventTypeStats]
+    .filter((e) => e.missCount > 0)
+    .sort((a, b) => b.missCount - a.missCount);
+
+  return {
+    worstSlots,
+    slowCardTypes,
+    eventMisses,
+    cardTypeStats,
+  };
+}
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  slot_close: '通道关闭',
+  fake_card: '同名干扰',
+  priority_change: '优先级变更',
+  rush_hour: '高峰客流',
+};
+
+export function getEventTypeLabel(type: string): string {
+  return EVENT_TYPE_LABELS[type] || type;
 }

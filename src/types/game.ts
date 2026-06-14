@@ -95,6 +95,58 @@ export interface GameResult {
   penalties: { label: string; amount: number }[];
   suggestion: string;
   playedAt: number;
+  reviewAnalysis?: ReviewAnalysis;
+  isTraining?: boolean;
+  sourceLevelId?: number;
+}
+
+export interface CardTypeStat {
+  type: CardType;
+  label: string;
+  correct: number;
+  wrong: number;
+  totalResponseTime: number;
+  avgResponseTime: number;
+}
+
+export interface EventTypeStat {
+  type: EventType;
+  count: number;
+  missCount: number;
+}
+
+export interface ReviewAnalysis {
+  worstSlots: { slotId: string; slotLabel: string; wrong: number; correct: number }[];
+  slowCardTypes: CardTypeStat[];
+  eventMisses: EventTypeStat[];
+  cardTypeStats: CardTypeStat[];
+}
+
+export type TrainingFocusType = 'slot' | 'cardType' | 'event';
+
+export interface TrainingFocus {
+  type: TrainingFocusType;
+  target: string;
+  label: string;
+}
+
+export interface TrainingLevelConfig extends LevelConfig {
+  isTraining: true;
+  sourceLevelId: number;
+  focus: TrainingFocus;
+}
+
+export interface ReviewSummary {
+  levelId: number;
+  levelName: string;
+  totalScore: number;
+  stars: 0 | 1 | 2 | 3;
+  accuracy: number;
+  worstSlotLabel: string;
+  slowestCardTypeLabel: string;
+  eventMissCount: number;
+  playedAt: number;
+  hasTraining: boolean;
 }
 
 export interface DragState {

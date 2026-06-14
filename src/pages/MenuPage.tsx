@@ -1,18 +1,43 @@
-import { Play, BookOpen, Grid3X3, History, Trophy, Sparkles } from 'lucide-react';
+import { Play, BookOpen, Grid3X3, History, Trophy, Sparkles, Dumbbell, BarChart3, ArrowRight, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LEVELS } from '@/data/levels';
-import { getBestScores, getUnlockedLevels } from '@/utils/storage';
+import { getBestScores, getUnlockedLevels, getLastReviewSummary, getHistory } from '@/utils/storage';
+import { useGameStore } from '@/store/gameStore';
+import { generateTrainingLevel, getTrainingFocuses, markTrainingStarted } from '@/utils/storage';
 
 export function MenuPage() {
   const navigate = useNavigate();
+  const initTrainingLevel = useGameStore((s) => s.initTrainingLevel);
   const unlocked = getUnlockedLevels();
   const scores = getBestScores();
+  const lastReview = getLastReviewSummary();
+  const history = getHistory();
 
   const maxUnlocked = unlocked.length > 0 ? Math.max(...unlocked) : 1;
   const totalStars = Object.values(scores).reduce((a, b) => a + b.stars, 0);
   const totalPossible = LEVELS.length * 3;
 
   const quickStartId = maxUnlocked;
+
+  const lastResult = history.find((r) => r.levelId === lastReview?.levelId && !r.isTraining);
+
+  const startQuickTraining = () => {
+    if (!lastResult) {
+      navigate('/levels');
+      return;
+    }
+    const focuses = getTrainingFocuses(lastResult);
+    if (focuses.length > 0) {
+      const trainingLevel = generateTrainingLevel(lastResult, focuses[0]);
+      if (trainingLevel) {
+        markTrainingStarted();
+        initTrainingLevel(trainingLevel);
+        navigate(`/training/${trainingLevel.id}`);
+      }
+    } else {
+      navigate('/levels');
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden">
@@ -72,6 +97,81 @@ export function MenuPage() {
             <span className="text-slate-500 text-xs">已解锁</span>
           </div>
         </div>
+
+        {lastReview && (
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-slate-900/50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 size={16} className="text-amber-400" />
+                <span className="text-sm font-bold text-amber-200">最近复盘摘要</span>
+              </div>
+              {!lastReview.hasTraining && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">待训练</span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="text-center">
+                <div className="text-slate-500">关卡</div>
+                <div className="text-slate-200 font-bold">{lastReview.levelName}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-slate-500">得分</div>
+                <div className="text-amber-300 font-bold tabular-nums">{lastReview.totalScore.toLocaleString()}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-slate-500">正确率</div>
+                <div className={`font-bold ${lastReview.accuracy >= 0.8 ? 'text-emerald-400' : lastReview.accuracy >= 0.6 ? 'text-amber-400' : 'text-rose-400'}`}>
+                  {(lastReview.accuracy * 100).toFixed(0)}%
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-400">
+              <div className="text-center">
+                <div className="text-rose-400/80">易错卡槽</div>
+                <div className="text-slate-300">{lastReview.worstSlotLabel}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sky-400/80">慢响应</div>
+                <div className="text-slate-300">{lastReview.slowestCardTypeLabel}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-purple-400/80">事件失误</div>
+                <div className="text-slate-300">{lastReview.eventMissCount}次</div>
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-1">
+              {[1, 2, 3].map((i) => (
+                <Star
+                  key={i}
+                  size={14}
+                  className={i <= lastReview.stars ? 'text-amber-400 fill-amber-400' : 'text-slate-700'}
+                />
+              ))}
+            </div>
+            {!lastReview.hasTraining && lastResult && (
+              <button
+                onClick={startQuickTraining}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-sm
+                  bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400
+                  text-white shadow-md hover:-translate-y-0.5 transition-all"
+              >
+                <Dumbbell size={16} />
+                开始针对性训练
+                <ArrowRight size={16} />
+              </button>
+            )}
+            {lastReview.hasTraining && (
+              <button
+                onClick={() => navigate(`/game/${lastReview.levelId}`)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-sm
+                  bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600 text-slate-100 shadow-md hover:-translate-y-0.5 transition-all"
+              >
+                <Play size={16} className="fill-white" />
+                再次挑战 {lastReview.levelName}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="space-y-3">
           <button
