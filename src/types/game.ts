@@ -137,6 +137,30 @@ export interface TrainingLevelConfig extends LevelConfig {
   focus: TrainingFocus;
 }
 
+export interface TrainingPlanItem {
+  focus: TrainingFocus;
+  targetScore: number;
+  suggestedRounds: number;
+  completedRounds: number;
+  bestScore: number;
+  improvementDirection: string;
+}
+
+export type TrainingPlanStatus = 'active' | 'completed' | 'abandoned';
+
+export interface TrainingPlan {
+  id: string;
+  sourceLevelId: number;
+  sourceLevelName: string;
+  sourceResultTimestamp: number;
+  sourceScore: number;
+  sourceAccuracy: number;
+  items: TrainingPlanItem[];
+  createdAt: number;
+  status: TrainingPlanStatus;
+  completedAt?: number;
+}
+
 export interface ReviewSummary {
   levelId: number;
   levelName: string;
@@ -148,6 +172,7 @@ export interface ReviewSummary {
   eventMissCount: number;
   playedAt: number;
   hasTraining: boolean;
+  trainingPlanId?: string;
 }
 
 export interface DragState {

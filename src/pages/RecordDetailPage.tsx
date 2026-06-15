@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Star, Trophy, Target, Clock, Flame, XCircle, AlertCircle, Lightbulb, RotateCcw, Home, ChevronRight, Zap, Layers, Activity, BarChart3, Dumbbell, Gamepad2, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Star, Trophy, Target, Clock, Flame, XCircle, AlertCircle, Lightbulb, RotateCcw, Home, ChevronRight, Zap, Layers, Activity, BarChart3, Dumbbell, Gamepad2, TrendingUp, TrendingDown, ArrowRight, ClipboardList, Sparkles } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
-import type { GameResult, SlotStat, TrainingFocus } from '@/types/game';
+import type { GameResult, SlotStat, TrainingFocus, TrainingPlan } from '@/types/game';
 import { LEVELS, getLevel } from '@/data/levels';
 import { formatDuration, getEventTypeLabel } from '@/utils/score';
-import { getRecordByTimestamp, getRecordsForLevel, getTrainingRecordsForSourceLevel, generateTrainingLevel, markTrainingStarted, getTrainingFocuses } from '@/utils/storage';
+import { getRecordByTimestamp, getRecordsForLevel, getTrainingRecordsForSourceLevel, generateTrainingLevel, markTrainingStarted, getTrainingFocuses, generateTrainingPlan, getActivePlanForLevel, getTrainingImprovementHint, getTrainingPlan } from '@/utils/storage';
 import { useGameStore } from '@/store/gameStore';
 import type { TrainingLevelConfig } from '@/types/game';
 
@@ -165,6 +165,7 @@ export function RecordDetailPage() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [record, setRecord] = useState<GameResult | null>(null);
   const [trendRecords, setTrendRecords] = useState<{ before: GameResult | null; after: GameResult | null }>({ before: null, after: null });
+  const [createdPlan, setCreatedPlan] = useState<TrainingPlan | null>(null);
 
   const isTraining = location.pathname.includes('/record/training/');
   const id = parseInt(levelId, 10);
@@ -201,13 +202,24 @@ export function RecordDetailPage() {
 
   const trainingFocuses = record && !isTraining ? getTrainingFocuses(record) : [];
 
+  const activePlan = record && !isTraining ? getActivePlanForLevel(record.levelId) : null;
+
   const startTraining = (focus: TrainingFocus) => {
     if (!record) return;
+    const planId = activePlan?.id || createdPlan?.id || undefined;
     const trainingLevel = generateTrainingLevel(record, focus);
     if (trainingLevel) {
       markTrainingStarted();
-      initTrainingLevel(trainingLevel);
+      initTrainingLevel(trainingLevel, planId);
       navigate(`/training/${trainingLevel.id}`);
+    }
+  };
+
+  const onCreatePlan = () => {
+    if (!record) return;
+    const plan = generateTrainingPlan(record);
+    if (plan) {
+      setCreatedPlan(plan);
     }
   };
 
@@ -236,7 +248,8 @@ export function RecordDetailPage() {
     );
 
     if (trainingLevel) {
-      initTrainingLevel(trainingLevel);
+      const planForSource = getActivePlanForLevel(record.sourceLevelId);
+      initTrainingLevel(trainingLevel, planForSource?.id || undefined);
       navigate(`/training/${trainingLevel.id}`);
     }
   };
@@ -696,7 +709,148 @@ export function RecordDetailPage() {
           </div>
         )}
 
-        {!isTraining && trainingFocuses.length > 0 && (
+        {!isTraining && trainingFocuses.length > 0 && !createdPlan && !activePlan && (
+          <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5 mt-6">
+            <h3 className="text-sm font-bold text-violet-200 mb-3 flex items-center gap-1.5">
+              <ClipboardList size={16} className="text-violet-400" />
+              生成训练计划
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              根据失误分析，一键生成包含推荐训练项、目标分和建议完成次数的训练计划
+            </p>
+            <button
+              onClick={onCreatePlan}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold
+                bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-400 hover:to-purple-400
+                text-white shadow-lg shadow-violet-500/20 hover:-translate-y-0.5 transition-all"
+            >
+              <Sparkles size={16} />
+              一键生成训练计划
+            </button>
+          </div>
+        )}
+
+        {createdPlan && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 mt-6">
+            <h3 className="text-sm font-bold text-amber-200 mb-3 flex items-center gap-1.5">
+              <ClipboardList size={16} className="text-amber-400" />
+              训练计划已生成
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              以下训练项将帮助你针对性提升「{level?.name}」的表现：
+            </p>
+            <div className="space-y-3 mb-4">
+              {createdPlan.items.map((item, i) => (
+                <div key={i} className="bg-slate-900/40 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    {item.focus.type === 'slot' && <Layers size={14} className="text-rose-400" />}
+                    {item.focus.type === 'cardType' && <Zap size={14} className="text-sky-400" />}
+                    {item.focus.type === 'event' && <Activity size={14} className="text-purple-400" />}
+                    <span className="text-sm font-bold text-slate-200">{item.focus.label}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="bg-slate-800/50 rounded-lg px-2 py-1.5 text-center">
+                      <div className="text-slate-500 text-[10px]">目标分</div>
+                      <div className="font-bold text-amber-400 tabular-nums">{item.targetScore}</div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg px-2 py-1.5 text-center">
+                      <div className="text-slate-500 text-[10px]">建议次数</div>
+                      <div className="font-bold text-sky-400 tabular-nums">{item.suggestedRounds}次</div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg px-2 py-1.5 text-center">
+                      <div className="text-slate-500 text-[10px]">提升方向</div>
+                      <div className="font-bold text-emerald-400 text-[10px] truncate">{item.improvementDirection.slice(0, 12)}...</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => startTraining(trainingFocuses[0])}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold
+                  bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400
+                  text-white shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all"
+              >
+                <Dumbbell size={14} />
+                开始训练
+              </button>
+              <button
+                onClick={() => navigate(`/training-plan/${createdPlan.id}`)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold
+                  bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-100 hover:-translate-y-0.5 transition-all"
+              >
+                <ClipboardList size={14} />
+                查看计划
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isTraining && activePlan && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 mt-6">
+            <h3 className="text-sm font-bold text-amber-200 mb-3 flex items-center gap-1.5">
+              <ClipboardList size={16} className="text-amber-400" />
+              当前训练计划
+            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs text-slate-400">
+                「{activePlan.sourceLevelName}」训练计划进行中
+              </div>
+              <div className="flex gap-1">
+                {activePlan.items.map((item, i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${
+                      item.completedRounds >= item.suggestedRounds ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(`/training-plan/${activePlan.id}`)}
+              className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold
+                bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400
+                text-white shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all"
+            >
+              <Dumbbell size={14} />
+              继续训练计划
+            </button>
+          </div>
+        )}
+
+        {isTraining && record && record.sourceLevelId && (() => {
+          const planForSource = getActivePlanForLevel(record.sourceLevelId);
+          if (!planForSource || !record.trainingFocus) return null;
+          const hint = getTrainingImprovementHint(planForSource, record);
+          if (!hint) return null;
+          return (
+            <div
+              className="rounded-2xl border p-5 mt-6 overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, #10b98122 0%, #0ea5e922 100%)',
+                borderColor: 'rgba(16, 185, 129, 0.25)',
+              }}
+            >
+              <h3 className="text-sm font-bold text-emerald-200 mb-2 flex items-center gap-1.5">
+                <Sparkles size={14} className="text-emerald-400" />
+                训练提升建议
+              </h3>
+              <p className="text-slate-200 text-sm leading-relaxed">{hint}</p>
+              <button
+                onClick={() => navigate(`/training-plan/${planForSource.id}`)}
+                className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold
+                  bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-all"
+              >
+                <ClipboardList size={12} />
+                查看训练计划进度
+              </button>
+            </div>
+          );
+        })()}
+
+        {!isTraining && trainingFocuses.length > 0 && !createdPlan && (
           <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 mt-6">
             <h3 className="text-sm font-bold text-emerald-200 mb-4 flex items-center gap-1.5">
               <Zap size={16} className="text-emerald-400" />

@@ -27,7 +27,7 @@ import {
   calcWrongPenalty,
   generateSuggestion,
 } from '@/utils/score';
-import { saveGameResult } from '@/utils/storage';
+import { saveGameResult, updateTrainingPlanProgress } from '@/utils/storage';
 
 interface GameStore {
   status: GameStatus;
@@ -71,11 +71,12 @@ interface GameStore {
 
   lastResult: GameResult | null;
   lastReviewAnalysis: ReviewAnalysis | null;
+  currentTrainingPlanId: string | null;
 
   drag: DragState;
 
   initLevel: (levelId: number) => void;
-  initTrainingLevel: (config: TrainingLevelConfig) => void;
+  initTrainingLevel: (config: TrainingLevelConfig, planId?: string) => void;
   startGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
@@ -202,6 +203,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   lastResult: null,
   lastReviewAnalysis: null,
+  currentTrainingPlanId: null,
 
   drag: {
     isDragging: false,
@@ -251,6 +253,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eventMessages: [],
       lastResult: null,
       lastReviewAnalysis: null,
+      currentTrainingPlanId: null,
       drag: {
         isDragging: false,
         card: null,
@@ -264,7 +267,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  initTrainingLevel: (config: TrainingLevelConfig) => {
+  initTrainingLevel: (config: TrainingLevelConfig, planId?: string) => {
     set({
       status: 'idle',
       levelId: config.id,
@@ -299,6 +302,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eventMessages: [],
       lastResult: null,
       lastReviewAnalysis: null,
+      currentTrainingPlanId: planId || null,
       drag: {
         isDragging: false,
         card: null,
@@ -436,6 +440,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const result: GameResult = { ...partialResult, suggestion };
 
     saveGameResult(result);
+
+    if (isTraining && trainingFocus && state.currentTrainingPlanId) {
+      updateTrainingPlanProgress(
+        state.currentTrainingPlanId,
+        trainingFocus,
+        finalScore,
+      );
+    }
 
     set({
       status: 'finished',

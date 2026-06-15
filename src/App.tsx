@@ -7,6 +7,7 @@ import { ResultPage } from '@/pages/ResultPage';
 import { TrainingPage } from '@/pages/TrainingPage';
 import { RecordsCenterPage } from '@/pages/RecordsCenterPage';
 import { RecordDetailPage } from '@/pages/RecordDetailPage';
+import { TrainingPlanPage } from '@/pages/TrainingPlanPage';
 
 export default function App() {
   return (
@@ -21,6 +22,8 @@ export default function App() {
         <Route path="/records" element={<RecordsCenterPage />} />
         <Route path="/record/level/:levelId" element={<RecordDetailPage />} />
         <Route path="/record/training/:levelId" element={<RecordDetailPage />} />
+        <Route path="/training-plans" element={<TrainingPlanPage />} />
+        <Route path="/training-plan/:planId" element={<TrainingPlanPage />} />
         <Route path="*" element={<MenuPage />} />
       </Routes>
     </Router>

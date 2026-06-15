@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Star, Trophy, Target, Clock, Flame, XCircle, Dumbbell, Gamepad2, Filter, ChevronRight, BarChart3, Layers, Zap, Activity } from 'lucide-react';
+import { ArrowLeft, Star, Trophy, Target, Clock, Flame, XCircle, Dumbbell, Gamepad2, Filter, ChevronRight, BarChart3, Layers, Zap, Activity, ClipboardList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getHistory, getTrainingHistory, getBestScore } from '@/utils/storage';
+import { getHistory, getTrainingHistory, getBestScore, getTrainingPlans, getActiveTrainingPlans } from '@/utils/storage';
 import { LEVELS } from '@/data/levels';
 import type { GameResult } from '@/types/game';
 import { formatDuration } from '@/utils/score';
@@ -15,6 +15,8 @@ export function RecordsCenterPage() {
 
   const levelHistory = getHistory();
   const trainingHistory = getTrainingHistory();
+  const allPlans = getTrainingPlans();
+  const activePlans = getActiveTrainingPlans();
 
   const allRecords: GameResult[] = [
     ...levelHistory,
@@ -126,6 +128,61 @@ export function RecordsCenterPage() {
             </div>
           </div>
         </div>
+
+        {(activePlans.length > 0 || allPlans.length > 0) && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ClipboardList size={16} className="text-amber-400" />
+                <span className="text-sm font-bold text-amber-200">训练计划</span>
+              </div>
+              <button
+                onClick={() => navigate('/training-plans')}
+                className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
+              >
+                查看全部
+                <ChevronRight size={14} />
+              </button>
+            </div>
+            {activePlans.length > 0 ? (
+              <div className="space-y-2">
+                {activePlans.slice(0, 2).map((plan) => {
+                  const completedItems = plan.items.filter((i) => i.completedRounds >= i.suggestedRounds).length;
+                  const totalItems = plan.items.length;
+                  const progress = totalItems > 0 ? completedItems / totalItems : 0;
+                  return (
+                    <button
+                      key={plan.id}
+                      onClick={() => navigate(`/training-plan/${plan.id}`)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all text-left"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                        <Dumbbell size={16} className="text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-amber-200 truncate">{plan.sourceLevelName}</span>
+                          <span className="text-xs text-amber-400 font-bold tabular-nums ml-2">{Math.round(progress * 100)}%</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-1.5 bg-slate-800/70 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
+                              style={{ width: `${progress * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-400 flex-shrink-0">{completedItems}/{totalItems}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">暂无进行中的训练计划</p>
+            )}
+          </div>
+        )}
 
         <div className="rounded-2xl border border-slate-700/50 bg-slate-950/60 p-4 mb-6">
           <div className="flex items-center gap-2 mb-3">

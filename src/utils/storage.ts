@@ -6,6 +6,8 @@ import type {
   ReviewSummary,
   TrainingFocus,
   TrainingLevelConfig,
+  TrainingPlan,
+  TrainingPlanItem,
 } from '@/types/game';
 import { CARD_TYPE_META, getLevel } from '@/data/levels';
 import { getEventTypeLabel } from '@/utils/score';
@@ -15,6 +17,7 @@ const BEST_KEY = 'csg_best_scores';
 const HISTORY_KEY = 'csg_history';
 const LAST_REVIEW_KEY = 'csg_last_review';
 const TRAINING_HISTORY_KEY = 'csg_training_history';
+const TRAINING_PLAN_KEY = 'csg_training_plans';
 
 export function getUnlockedLevels(): number[] {
   try {
@@ -99,7 +102,7 @@ export function saveGameResult(result: GameResult): void {
   }
 }
 
-export function saveReviewSummary(result: GameResult): void {
+export function saveReviewSummary(result: GameResult, trainingPlanId?: string): void {
   if (!result.reviewAnalysis) return;
 
   const worstSlot = result.reviewAnalysis.worstSlots[0];
@@ -122,6 +125,7 @@ export function saveReviewSummary(result: GameResult): void {
     eventMissCount: totalEventMissCount,
     playedAt: result.playedAt,
     hasTraining: false,
+    trainingPlanId,
   };
 
   localStorage.setItem(LAST_REVIEW_KEY, JSON.stringify(summary));
@@ -311,4 +315,172 @@ export function getTrainingFocuses(result: GameResult): TrainingFocus[] {
   }
 
   return focuses;
+}
+
+export function getTrainingPlans(): TrainingPlan[] {
+  try {
+    const raw = localStorage.getItem(TRAINING_PLAN_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveTrainingPlans(plans: TrainingPlan[]): void {
+  localStorage.setItem(TRAINING_PLAN_KEY, JSON.stringify(plans));
+}
+
+export function getTrainingPlan(id: string): TrainingPlan | null {
+  const plans = getTrainingPlans();
+  return plans.find((p) => p.id === id) || null;
+}
+
+export function getActiveTrainingPlans(): TrainingPlan[] {
+  return getTrainingPlans().filter((p) => p.status === 'active');
+}
+
+export function getTrainingPlansForLevel(levelId: number): TrainingPlan[] {
+  return getTrainingPlans().filter((p) => p.sourceLevelId === levelId);
+}
+
+export function generateTrainingPlan(result: GameResult): TrainingPlan | null {
+  if (!result.reviewAnalysis) return null;
+
+  const focuses = getTrainingFocuses(result);
+  if (focuses.length === 0) return null;
+
+  const sourceLevel = getLevel(result.levelId);
+  if (!sourceLevel) return null;
+
+  const items: TrainingPlanItem[] = focuses.map((focus) => {
+    let targetScore: number;
+    let suggestedRounds: number;
+    let improvementDirection: string;
+
+    if (focus.type === 'slot') {
+      const slotStat = result.slotStats.find(
+        (s) => s.slotLabel === focus.target,
+      );
+      const slotScore = slotStat?.score ?? 0;
+      targetScore = Math.round(slotScore * 1.5 + 100);
+      suggestedRounds = 3;
+      improvementDirection = `降低「${focus.target}」错放次数，提升该位置正确率至80%以上`;
+    } else if (focus.type === 'cardType') {
+      targetScore = Math.round(sourceLevel.targetScore * 0.5);
+      suggestedRounds = 3;
+      improvementDirection = `将「${focus.label}」平均响应时间缩短至2秒以内，提升反应速度`;
+    } else {
+      targetScore = Math.round(sourceLevel.targetScore * 0.5);
+      suggestedRounds = 2;
+      improvementDirection = `减少「${getEventTypeLabel(focus.target)}」事件失误次数，掌握应对策略`;
+    }
+
+    return {
+      focus,
+      targetScore,
+      suggestedRounds,
+      completedRounds: 0,
+      bestScore: 0,
+      improvementDirection,
+    };
+  });
+
+  const plan: TrainingPlan = {
+    id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    sourceLevelId: result.levelId,
+    sourceLevelName: sourceLevel.name,
+    sourceResultTimestamp: result.playedAt,
+    sourceScore: result.totalScore,
+    sourceAccuracy: result.accuracy,
+    items,
+    createdAt: Date.now(),
+    status: 'active',
+  };
+
+  const plans = getTrainingPlans();
+  plans.unshift(plan);
+  saveTrainingPlans(plans);
+
+  const summary = getLastReviewSummary();
+  if (summary) {
+    summary.trainingPlanId = plan.id;
+    localStorage.setItem(LAST_REVIEW_KEY, JSON.stringify(summary));
+  }
+
+  return plan;
+}
+
+export function updateTrainingPlanProgress(
+  planId: string,
+  focus: TrainingFocus,
+  trainingScore: number,
+): TrainingPlan | null {
+  const plans = getTrainingPlans();
+  const plan = plans.find((p) => p.id === planId);
+  if (!plan) return null;
+
+  const item = plan.items.find(
+    (i) => i.focus.type === focus.type && i.focus.target === focus.target,
+  );
+  if (!item) return null;
+
+  item.completedRounds += 1;
+  if (trainingScore > item.bestScore) {
+    item.bestScore = trainingScore;
+  }
+
+  const allCompleted = plan.items.every(
+    (i) => i.completedRounds >= i.suggestedRounds,
+  );
+  if (allCompleted) {
+    plan.status = 'completed';
+    plan.completedAt = Date.now();
+  }
+
+  saveTrainingPlans(plans);
+  return plan;
+}
+
+export function abandonTrainingPlan(planId: string): void {
+  const plans = getTrainingPlans();
+  const plan = plans.find((p) => p.id === planId);
+  if (plan) {
+    plan.status = 'abandoned';
+    saveTrainingPlans(plans);
+  }
+}
+
+export function getActivePlanForLevel(levelId: number): TrainingPlan | null {
+  const plans = getActiveTrainingPlans();
+  return plans.find((p) => p.sourceLevelId === levelId) || null;
+}
+
+export function getTrainingImprovementHint(
+  plan: TrainingPlan,
+  trainingResult: GameResult,
+): string {
+  const focus = trainingResult.trainingFocus;
+  if (!focus) return '';
+
+  const item = plan.items.find(
+    (i) => i.focus.type === focus.type && i.focus.target === focus.target,
+  );
+  if (!item) return '';
+
+  const metTarget = trainingResult.totalScore >= item.targetScore;
+  const roundsLeft = Math.max(0, item.suggestedRounds - item.completedRounds);
+
+  const sourceLevel = getLevel(plan.sourceLevelId);
+  const levelName = sourceLevel?.name || `第${plan.sourceLevelId}关`;
+
+  if (metTarget && roundsLeft === 0) {
+    return `恭喜！「${item.focus.label}」训练项目已达标完成。建议返回「${levelName}」再次挑战，验证整体提升效果。`;
+  }
+  if (metTarget) {
+    return `本次训练达标！「${item.focus.label}」还剩${roundsLeft}轮建议训练，继续巩固可进一步提升「${levelName}」的表现。`;
+  }
+  return `本次训练尚未达到目标分${item.targetScore}。「${item.improvementDirection}」，建议继续训练后再挑战「${levelName}」。`;
 }
