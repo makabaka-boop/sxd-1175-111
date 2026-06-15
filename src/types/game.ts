@@ -98,6 +98,7 @@ export interface GameResult {
   reviewAnalysis?: ReviewAnalysis;
   isTraining?: boolean;
   sourceLevelId?: number;
+  trainingFocus?: TrainingFocus;
 }
 
 export interface CardTypeStat {

@@ -17,8 +17,8 @@ export function RecordsCenterPage() {
   const trainingHistory = getTrainingHistory();
 
   const allRecords: GameResult[] = [
-    ...levelHistory.map(r => ({ ...r, isTraining: false })),
-    ...trainingHistory.map(r => ({ ...r, isTraining: true })),
+    ...levelHistory,
+    ...trainingHistory,
   ].sort((a, b) => b.playedAt - a.playedAt);
 
   const filteredRecords = allRecords.filter(record => {

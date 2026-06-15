@@ -69,7 +69,7 @@ export function getHistory(): GameResult[] {
     const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed)) return parsed.filter((item) => !item?.isTraining);
     return [];
   } catch {
     return [];
@@ -84,16 +84,18 @@ export function addToHistory(result: GameResult): void {
 }
 
 export function saveGameResult(result: GameResult): void {
-  saveBestScore(result);
-  addToHistory(result);
-  if (result.stars >= 1 && !result.isTraining) {
-    unlockLevel(result.levelId + 1);
-  }
-  if (!result.isTraining && result.reviewAnalysis) {
-    saveReviewSummary(result);
-  }
   if (result.isTraining) {
     addToTrainingHistory(result);
+    return;
+  }
+
+  saveBestScore(result);
+  addToHistory(result);
+  if (result.stars >= 1) {
+    unlockLevel(result.levelId + 1);
+  }
+  if (result.reviewAnalysis) {
+    saveReviewSummary(result);
   }
 }
 
@@ -160,7 +162,7 @@ export function getTrainingHistory(): GameResult[] {
     const raw = localStorage.getItem(TRAINING_HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed)) return parsed.filter((item) => item?.isTraining);
     return [];
   } catch {
     return [];

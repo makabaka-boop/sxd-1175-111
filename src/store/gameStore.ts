@@ -414,6 +414,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const isTraining = 'isTraining' in level && level.isTraining;
     const sourceLevelId = isTraining && 'sourceLevelId' in level ? level.sourceLevelId : undefined;
+    const trainingFocus = isTraining && 'focus' in level ? level.focus : undefined;
 
     const partialResult = {
       levelId: level.id,
@@ -429,6 +430,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       reviewAnalysis,
       isTraining,
       sourceLevelId,
+      trainingFocus,
     };
     const suggestion = generateSuggestion(partialResult);
     const result: GameResult = { ...partialResult, suggestion };

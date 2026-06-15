@@ -150,6 +150,10 @@ function TrendBar({
   );
 }
 
+function getEventMissTotal(result: GameResult): number {
+  return result.reviewAnalysis?.eventMisses.reduce((sum, item) => sum + item.missCount, 0) ?? 0;
+}
+
 export function RecordDetailPage() {
   const { levelId = '1' } = useParams<{ levelId: string }>();
   const [searchParams] = useSearchParams();
@@ -221,6 +225,20 @@ export function RecordDetailPage() {
   const onContinueTraining = () => {
     if (!record || trainingFocuses.length === 0) return;
     startTraining(trainingFocuses[0]);
+  };
+
+  const onRepeatTraining = () => {
+    if (!record?.trainingFocus || !record.sourceLevelId) return;
+
+    const trainingLevel = generateTrainingLevel(
+      { ...record, levelId: record.sourceLevelId },
+      record.trainingFocus,
+    );
+
+    if (trainingLevel) {
+      initTrainingLevel(trainingLevel);
+      navigate(`/training/${trainingLevel.id}`);
+    }
   };
 
   const getLevelName = () => {
@@ -619,6 +637,13 @@ export function RecordDetailPage() {
                 suffix="次"
               />
               <TrendBar
+                label="事件失误"
+                beforeValue={getEventMissTotal(trendRecords.before)}
+                afterValue={getEventMissTotal(trendRecords.after)}
+                isBetterHigher={false}
+                suffix="次"
+              />
+              <TrendBar
                 label="星级"
                 beforeValue={trendRecords.before.stars}
                 afterValue={trendRecords.after.stars}
@@ -647,21 +672,20 @@ export function RecordDetailPage() {
                       </div>
                     </div>
                   )}
-                  {trendRecords.before.reviewAnalysis.eventMisses.length > 0 && (
+                  {(getEventMissTotal(trendRecords.before) > 0 || getEventMissTotal(trendRecords.after) > 0) && (
                     <div>
                       <div className="text-xs text-slate-500 mb-2">事件失误总数</div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-rose-400">
-                          训练前: {trendRecords.before.reviewAnalysis.eventMisses.reduce((s, e) => s + e.missCount, 0)}次
+                          训练前: {getEventMissTotal(trendRecords.before)}次
                         </span>
                         <ArrowRight size={14} className="text-slate-600" />
                         <span className={`text-sm ${
-                          trendRecords.after.reviewAnalysis.eventMisses.reduce((s, e) => s + e.missCount, 0) <=
-                          trendRecords.before.reviewAnalysis.eventMisses.reduce((s, e) => s + e.missCount, 0)
+                          getEventMissTotal(trendRecords.after) <= getEventMissTotal(trendRecords.before)
                             ? 'text-emerald-400'
                             : 'text-rose-400'
                         }`}>
-                          训练后: {trendRecords.after.reviewAnalysis.eventMisses.reduce((s, e) => s + e.missCount, 0)}次
+                          训练后: {getEventMissTotal(trendRecords.after)}次
                         </span>
                       </div>
                     </div>
@@ -742,14 +766,27 @@ export function RecordDetailPage() {
               )}
             </>
           ) : (
-            <button
-              onClick={onReplay}
-              className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all col-span-2 md:col-span-2
-                bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5"
-            >
-              <ArrowRight size={16} />
-              返回原关卡挑战
-            </button>
+            <>
+              {record.trainingFocus && (
+                <button
+                  onClick={onRepeatTraining}
+                  className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all
+                    bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400
+                    text-white shadow-lg shadow-amber-500/20 hover:-translate-y-0.5"
+                >
+                  <Dumbbell size={16} />
+                  继续训练
+                </button>
+              )}
+              <button
+                onClick={onReplay}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-sm transition-all col-span-1 md:col-span-1
+                  bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5"
+              >
+                <ArrowRight size={16} />
+                返回原关卡挑战
+              </button>
+            </>
           )}
         </div>
       </div>
